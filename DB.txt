@@ -1,0 +1,14 @@
+-- 데이터베이스 선택
+USE rainbow_holdem;
+
+-- 테이블 생성
+CREATE TABLE IF NOT EXISTS players (
+    player_id INT AUTO_INCREMENT PRIMARY KEY,
+    player_name VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    wins INT DEFAULT 0,
+    losses INT DEFAULT 0,
+    coins INT DEFAULT 100,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_played TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
