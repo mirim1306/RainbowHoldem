@@ -4,21 +4,12 @@ import java.io.*;
 import java.net.*;
 import java.util.function.Consumer;
 
-/**
- * 서버와의 소켓 통신을 담당하는 싱글톤 클라이언트
- *
- * ★ Railway 배포 후 아래 두 값을 수정하세요 ★
- * Railway 대시보드 → 서비스 → Settings → Networking → TCP Proxy 에서 확인
- *
- * 실행 시 JVM 옵션으로도 지정 가능:
- *   java -Dserver.host=monorail.proxy.rlwy.net -Dserver.port=54321 -jar client.jar
- */
 public class MultiplayerClient {
     private static final String SERVER_HOST = System.getProperty(
-        "server.host", "localhost"          // ← Railway 호스트로 변경
+        "server.host", "https://rainbow-holdem-server.onrender.com"
     );
     private static final int SERVER_PORT = Integer.parseInt(System.getProperty(
-        "server.port", "12345"              // ← Railway TCP Proxy 포트로 변경
+        "server.port", "10000"
     ));
 
     private static MultiplayerClient instance;
