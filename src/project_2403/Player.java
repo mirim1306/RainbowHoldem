@@ -134,47 +134,71 @@ public class Player {
         return (minIndex != -1) ? revealPersonalCard(minIndex) : null;
     }
 
-    // AI 베팅 결정 - 공개 카드 비교, 상쇄 가능성, 칩 여유를 고려한 적당한 전략
-    public String aiDecideBet(int minBet, List<Player> allPlayers, List<Card> revealedSharedCards) {
+    // AI 베팅 결정 - 실제 부분 점수 비교 + 팟 오즈 기반 전략
+    public String aiDecideBet(int minBet, List<Player> allPlayers, List<Card> revealedSharedCards, int pot) {
         if (hasFolded() || getChips() == 0 || getChips() < 10) return "FOLD";
 
-        // 내 공개 카드 값 (낮을수록 베팅 순서 앞 = 불리하지만 점수에선 유리)
-        int myRevealedValue = revealedCards.isEmpty() ? 5 : revealedCards.get(0).getValue();
+        // 내 현재 부분 점수 (공개된 카드들 중 상쇄 후 남은 합, 낮을수록 유리)
+        int myScore = calculatePartialScore(revealedSharedCards, personalCards, revealedCardIndices);
 
-        // 나보다 낮은 공개 카드를 가진 상대 수 계산
-        int opponentsBeatingMe = 0, activeOpponents = 0;
+        // 상대들의 부분 점수와 비교
+        int activeOpponents = 0, opponentsBeatingMe = 0;
         for (Player p : allPlayers) {
             if (p == this || p.hasFolded()) continue;
             activeOpponents++;
-            if (!p.getRevealedCards().isEmpty() && p.getRevealedCards().get(0).getValue() < myRevealedValue) {
-                opponentsBeatingMe++;
-            }
-        }
-        // 상대적 불리함 (0=나 제일 낮음, 1=나 제일 높음)
-        double disadvantage = (activeOpponents > 0) ? (double) opponentsBeatingMe / activeOpponents : 0.0;
-
-        // 내 패 중 공유 카드와 상쇄 가능한 카드 수
-        int cancelPotential = 0;
-        for (Card sharedCard : revealedSharedCards) {
-            for (Card myCard : personalCards) {
-                if (myCard.getValue() == sharedCard.getValue()) {
-                    cancelPotential++;
-                    break;
+            if (!p.getRevealedCards().isEmpty()) {
+                int theirVal = p.getRevealedCards().get(0).getValue();
+                boolean cancelled = false;
+                for (Card s : revealedSharedCards) {
+                    if (s.getValue() == theirVal) { cancelled = true; break; }
                 }
+                int theirScore = cancelled ? 0 : theirVal;
+                if (theirScore < myScore) opponentsBeatingMe++;
             }
         }
 
-        // 베팅 부담 비율 (minBet이 내 칩의 절반 이상이면 부담)
-        double betBurden = Math.min(1.0, (double) minBet / Math.max(1, getChips()));
+        // 추정 승률 (상대 정보 부족분을 50%와 혼합해 불확실성 반영)
+        double winRate = (activeOpponents > 0)
+            ? 1.0 - (double) opponentsBeatingMe / activeOpponents
+            : 0.7;
+        winRate = 0.35 * 0.5 + 0.65 * winRate;
 
-        // 콜 확률: 기본 65%, 불리할수록 감소, 상쇄 카드 있으면 증가, 부담 크면 감소
-        double callProb = 0.65
-            - 0.30 * disadvantage
-            + 0.15 * Math.min(1, cancelPotential)
-            - 0.15 * betBurden;
-        callProb = Math.max(0.25, Math.min(0.92, callProb));
+        // 팟 오즈: 이 베팅을 콜할 때 손익분기 승률
+        double potOdds = (pot + minBet > 0) ? (double) minBet / (pot + minBet) : 0.1;
+
+        // 승률 우위에 따른 기본 콜 확률
+        double edge = winRate - potOdds;
+        double callProb;
+        if      (edge >  0.25) callProb = 0.92;
+        else if (edge >  0.10) callProb = 0.80;
+        else if (edge >  0.00) callProb = 0.65;
+        else if (edge > -0.10) callProb = 0.48;
+        else if (edge > -0.25) callProb = 0.30;
+        else                   callProb = 0.15;
+
+        // 칩 부담 조정
+        double chipRatio = (double) minBet / Math.max(1, getChips());
+        callProb -= 0.20 * Math.min(1.0, chipRatio * 2);
+
+        // 약간의 무작위성 (블러핑/불확실성)
+        callProb += (Math.random() - 0.5) * 0.12;
+        callProb = Math.max(0.10, Math.min(0.95, callProb));
 
         return Math.random() < callProb ? "CALL" : "FOLD";
+    }
+
+    // 현재까지 공개된 카드들의 부분 점수 계산 (중복 카드는 상쇄)
+    private int calculatePartialScore(List<Card> sharedCards, List<Card> myCards, List<Integer> revealed) {
+        List<Integer> values = new ArrayList<>();
+        for (Card c : sharedCards) values.add(c.getValue());
+        for (int idx : revealed) values.add(myCards.get(idx).getValue());
+        int score = 0;
+        for (int v : values) {
+            int count = 0;
+            for (int w : values) if (w == v) count++;
+            if (count == 1) score += v;
+        }
+        return score;
     }
     
     public void setCardContainer(JPanel container) {

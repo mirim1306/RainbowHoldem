@@ -30,6 +30,7 @@ public class GameScreen extends JFrame {
     private JLabel userBetLabel;
     private List<JLabel> aiInfoLabels;
     private List<JPanel> aiCardPanels;
+    private JPanel northContainer;
 
     private JButton revealButton;
     private JButton callButton;
@@ -39,6 +40,7 @@ public class GameScreen extends JFrame {
     private List<JLabel> sharedCardLabels; // 공유 카드 UI 요소를 추적
     private static final int MIN_BET = 10;
     private static final int TURN_DELAY = 2000; // 2초 딜레이
+    private boolean cardSelectionEnabled = true;
 
     public GameScreen(String playerName, int totalPlayers, int initialChips, Home home) {  // home 파라미터 추가
         this.playerName = playerName;
@@ -65,7 +67,10 @@ public class GameScreen extends JFrame {
         gameStatusLabel.setBackground(new Color(50, 50, 50));
         gameStatusLabel.setForeground(Color.WHITE);
         gameStatusLabel.setOpaque(true);
-        add(gameStatusLabel, BorderLayout.NORTH);
+        northContainer = new JPanel(new BorderLayout());
+        northContainer.setBackground(new Color(50, 50, 50));
+        northContainer.add(gameStatusLabel, BorderLayout.NORTH);
+        add(northContainer, BorderLayout.NORTH);
         
         // 중앙: 공유 카드 및 게임 판
         JPanel centerContainer = new JPanel(new GridBagLayout());
@@ -158,6 +163,10 @@ public class GameScreen extends JFrame {
         if (aiCount >= 2) { // 컴퓨터 2 (AI 2)
             add(createAIPlayerPanel(players.get(2)), BorderLayout.EAST);
         }
+
+        if (aiCount >= 3) { // 컴퓨터 3 (AI 3) - 상단 중앙
+            northContainer.add(createTopAIPanel(players.get(3)), BorderLayout.CENTER);
+        }
     }
     
     // 베팅 버튼을 만드는 보조 메서드
@@ -214,10 +223,35 @@ public class GameScreen extends JFrame {
         // 3. 패널에 컴포넌트 추가
         panel.add(aiStatusLabel, BorderLayout.NORTH);
         panel.add(cardContainer, BorderLayout.CENTER); // 중앙에 카드 3장 컨테이너 배치
-        
+
         return panel;
     }
-    
+
+    // 상단 중앙에 배치되는 컴퓨터3 패널 (수평 레이아웃)
+    private JPanel createTopAIPanel(Player aiPlayer) {
+        JPanel panel = new JPanel(new BorderLayout(10, 0));
+        panel.setBackground(new Color(30, 30, 30));
+        panel.setBorder(BorderFactory.createEmptyBorder(6, 20, 6, 20));
+        panel.setPreferredSize(new Dimension(100, 105));
+
+        JLabel aiStatusLabel = new JLabel("", SwingConstants.LEFT);
+        aiStatusLabel.setForeground(Color.WHITE);
+        aiStatusLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 14));
+        aiStatusLabel.setPreferredSize(new Dimension(160, 90));
+        aiStatusLabel.setVerticalAlignment(SwingConstants.TOP);
+        aiInfoLabels.add(aiStatusLabel);
+
+        JPanel cardContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 4));
+        cardContainer.setOpaque(false);
+        cardContainer.setBorder(BorderFactory.createTitledBorder("공개 카드"));
+        aiCardPanels.add(cardContainer);
+
+        panel.add(aiStatusLabel, BorderLayout.WEST);
+        panel.add(cardContainer, BorderLayout.CENTER);
+
+        return panel;
+    }
+
     // 공유 카드 뒷면 표시 메서드 (Game 객체의 sharedCards를 사용하도록 추후 수정)
     private void displaySharedCardBacks() {
         sharedCardsPanel.removeAll();
@@ -311,8 +345,9 @@ public class GameScreen extends JFrame {
         }
         
      // 1. 사용자 카드 공개
-        Card userRevealedCard = userPlayer.revealPersonalCard(selectedCardIndex); 
-        
+        Card userRevealedCard = userPlayer.revealPersonalCard(selectedCardIndex);
+        cardSelectionEnabled = false;
+
         // 2. AI 카드 공개 시뮬레이션
         for (int i = 1; i < game.getPlayers().size(); i++) {
             Player aiPlayer = game.getPlayers().get(i);
@@ -388,7 +423,7 @@ public class GameScreen extends JFrame {
     private void processAIBet(Player aiPlayer) {
         final int requiredCallAmount = game.getCurrentRoundBet() - aiPlayer.getCurrentBetAmount();
         
-        String decision = aiPlayer.aiDecideBet(requiredCallAmount, game.getPlayers(), game.getRevealedSharedCards());
+        String decision = aiPlayer.aiDecideBet(requiredCallAmount, game.getPlayers(), game.getRevealedSharedCards(), game.getPot());
         
         if (decision.equals("FOLD")) {
             aiPlayer.fold();
@@ -433,47 +468,32 @@ public class GameScreen extends JFrame {
             updateUI();
             startNextTurnWithDelay(); // 딜레이 적용
         } else if (action.equals("CALL")) {
-        	String betInput = JOptionPane.showInputDialog(this, 
-                    "베팅 금액을 입력하세요 (최소 콜 금액: " + minBet + " 코인, 현재 보유: " + userPlayer.getChips() + " 코인):");
-            
-            if (betInput == null) return;
-            
-            try {
-                int amount = Integer.parseInt(betInput.trim());
-                
-                // 2. 베팅 금액 유효성 검사 (최소 베팅 금액 10 충족 확인)
-                if (amount < minBet && amount < userPlayer.getChips()) {
-                    JOptionPane.showMessageDialog(this, "베팅 금액은 최소 " + minBet + " 코인 이상이어야 합니다.", "경고", JOptionPane.WARNING_MESSAGE);
-                    callButton.setEnabled(true); // 다시 활성화
-                    foldButton.setEnabled(true);
-                    return;
-                }
-                
-                // 3. 베팅 처리 (올인 로직은 Player 클래스에 유지)
-                if (userPlayer.placeBet(amount)) {
-                    int placedAmount = userPlayer.getCurrentBetAmount();
-                    
-                    // 현재 라운드 최고 베팅 업데이트
-                    if (placedAmount > roundBet) {
-                        game.setCurrentRoundBet(placedAmount);
-                    }
-                    game.setPot(game.getPot() + placedAmount);
-                    
-                    gameStatusLabel.setText(userPlayer.getName() + "님이 " + placedAmount + " 코인을 베팅했습니다.");
-                    
-                    updateUI();
-                    startNextTurnWithDelay(); // 딜레이 적용
-                } else {
-                    // 칩 부족으로 베팅 실패 (다이 처리)
-                    userPlayer.fold(); 
-                    JOptionPane.showMessageDialog(this, "칩이 부족하여 다이(Fold) 처리됩니다.", "경고", JOptionPane.WARNING_MESSAGE);
-                    updateUI();
-                    startNextTurnWithDelay(); // 딜레이 적용
-                }
-            } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "유효한 숫자를 입력하세요.", "경고", JOptionPane.WARNING_MESSAGE);
+            int amount = showBetDialog(minBet);
+            if (amount < 0) {
                 callButton.setEnabled(true);
                 foldButton.setEnabled(true);
+                return;
+            }
+
+            if (amount < minBet && amount < userPlayer.getChips()) {
+                JOptionPane.showMessageDialog(this, "베팅 금액은 최소 " + minBet + " 코인 이상이어야 합니다.", "경고", JOptionPane.WARNING_MESSAGE);
+                callButton.setEnabled(true);
+                foldButton.setEnabled(true);
+                return;
+            }
+
+            if (userPlayer.placeBet(amount)) {
+                int placedAmount = userPlayer.getCurrentBetAmount();
+                if (placedAmount > roundBet) game.setCurrentRoundBet(placedAmount);
+                game.setPot(game.getPot() + placedAmount);
+                gameStatusLabel.setText(userPlayer.getName() + "님이 " + placedAmount + " 코인을 베팅했습니다.");
+                updateUI();
+                startNextTurnWithDelay();
+            } else {
+                userPlayer.fold();
+                JOptionPane.showMessageDialog(this, "칩이 부족하여 다이(Fold) 처리됩니다.", "경고", JOptionPane.WARNING_MESSAGE);
+                updateUI();
+                startNextTurnWithDelay();
             }
         }
     }
@@ -559,6 +579,7 @@ public class GameScreen extends JFrame {
     
     // 카드를 선택했을 때 UI를 업데이트하는 메서드
     private void selectCard(JLabel clickedLabel, int index) {
+        if (!cardSelectionEnabled) return;
         // 이전에 선택된 카드의 테두리를 초기화
         for (JLabel label : personalCardLabels) {
             label.setBorder(BorderFactory.createLineBorder(Color.BLACK, 2));
@@ -654,7 +675,8 @@ public class GameScreen extends JFrame {
                 }
                 
                 // 개인 카드 공개 버튼을 다시 활성화 (총 3장 중 1장씩 순차적으로 공개 가능)
-                revealButton.setEnabled(true); 
+                cardSelectionEnabled = true;
+                revealButton.setEnabled(true);
 
                 // 자동 턴 시작
                 startNextTurnWithDelay();
@@ -762,6 +784,42 @@ public class GameScreen extends JFrame {
         return finalScore;
     }
     
+    // 엔터로만 확인하는 베팅 입력 다이얼로그 (OK/취소 버튼 없음)
+    private int showBetDialog(int minBet) {
+        JTextField field = new JTextField(String.valueOf(minBet), 8);
+        field.setFont(new Font("맑은 고딕", Font.BOLD, 22));
+        field.setHorizontalAlignment(JTextField.CENTER);
+
+        JLabel label = new JLabel(
+            "<html><center>베팅 금액 입력 후 엔터<br>"
+            + "최소 " + minBet + " 코인 &nbsp;|&nbsp; 보유 " + userPlayer.getChips() + " 코인</center></html>",
+            SwingConstants.CENTER);
+        label.setFont(new Font("맑은 고딕", Font.PLAIN, 16));
+
+        JPanel panel = new JPanel(new BorderLayout(0, 12));
+        panel.setBorder(BorderFactory.createEmptyBorder(24, 32, 24, 32));
+        panel.add(label, BorderLayout.NORTH);
+        panel.add(field, BorderLayout.CENTER);
+
+        JDialog dialog = new JDialog(this, "베팅", true);
+        dialog.setContentPane(panel);
+        dialog.pack();
+        dialog.setMinimumSize(new Dimension(320, 130));
+        dialog.setLocationRelativeTo(this);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+
+        int[] result = {-1};
+        field.addActionListener(e -> {
+            try { result[0] = Integer.parseInt(field.getText().trim()); }
+            catch (NumberFormatException ex) { result[0] = -1; }
+            dialog.dispose();
+        });
+
+        SwingUtilities.invokeLater(field::requestFocusInWindow);
+        dialog.setVisible(true);
+        return result[0];
+    }
+
     // 게임 종료 후 최종 승자를 판정하고 결과를 표시합니다.
     private void showFinalResult() {
         List<Player> activePlayers = new ArrayList<>();

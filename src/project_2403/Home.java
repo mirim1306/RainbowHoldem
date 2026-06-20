@@ -208,7 +208,7 @@ public class Home extends JFrame {
     }
     
     private int showPlayerSelectionDialog() {
-        String[] options = {"2명", "3명"};
+        String[] options = {"2명", "3명", "4명"};
         String selectedOption = (String) JOptionPane.showInputDialog(
             this, "함께 플레이할 총 인원 수를 선택하세요.\n(나를 포함한 총 인원 수)",
             "인원 선택", JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
