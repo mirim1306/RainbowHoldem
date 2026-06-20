@@ -10,7 +10,7 @@ import java.util.concurrent.*;
  * 방 생성/참가/빠른 참가를 관리하고 게임 진행을 중계합니다.
  */
 public class GameServer {
-    private static final int PORT = 12345;
+    private static final int PORT = 10000;
     private static final int MAX_ROOMS = 10;
 
     // roomCode -> RoomInfo

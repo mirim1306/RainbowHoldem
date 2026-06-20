@@ -12,6 +12,7 @@ public class Start extends JFrame {
     private JButton loginButton;
     private JButton registerButton;
     private boolean isLoginMode = true; // true: 로그인, false: 회원가입
+    private boolean localModeNotified = false; // 로컬 파일 모드 안내를 한 번만 띄우기 위한 플래그
 
     public Start() {
         setTitle("레인보우 홀덤");
@@ -246,23 +247,18 @@ public class Start extends JFrame {
             return;
         }
         
-        // MySQL 연결 테스트
-        if (!DatabaseManager.testConnection()) {
-            int choice = JOptionPane.showConfirmDialog(this,
-                "MySQL 연결에 실패했습니다.\n그래도 계속하시겠습니까?\n(데이터가 저장되지 않습니다)",
-                "연결 실패",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.WARNING_MESSAGE);
-            
-            if (choice != JOptionPane.YES_OPTION) {
-                return;
-            }
-            
-            // MySQL 없이 진행 (개발 모드)
-            proceedWithoutDB(username);
-            return;
+        // MySQL 연결 확인: 연결이 안 되면 자동으로 로컬 파일 저장 모드로 전환됩니다.
+        // (이미 로컬 모드로 전환된 적이 있다면 매번 다시 연결을 시도하지 않아 지연이 없습니다)
+        boolean dbAvailable = localModeNotified ? false : DataManager.recheckConnection();
+        if (!dbAvailable && !localModeNotified) {
+            localModeNotified = true;
+            JOptionPane.showMessageDialog(this,
+                "MySQL 서버에 연결할 수 없어 파일 저장 모드로 전환합니다.\n" +
+                "(전적과 코인은 이 PC의 'playerdata' 폴더에 저장됩니다)",
+                "안내",
+                JOptionPane.INFORMATION_MESSAGE);
         }
-        
+
         if (isLoginMode) {
             // 로그인 처리
             handleLogin(username, password);
@@ -286,9 +282,9 @@ public class Start extends JFrame {
     }
     
     private void handleLogin(String username, String password) {
-        if (DatabaseManager.loginPlayer(username, password)) {
+        if (DataManager.loginPlayer(username, password)) {
             // 플레이어 데이터 로드
-            DatabaseManager.PlayerData data = DatabaseManager.loadPlayerData(username);
+            DatabaseManager.PlayerData data = DataManager.loadPlayerData(username);
             
             JOptionPane.showMessageDialog(this,
                 "환영합니다, " + username + "님!",
@@ -310,7 +306,7 @@ public class Start extends JFrame {
     }
     
     private void handleRegister(String username, String password) {
-        if (DatabaseManager.registerPlayer(username, password)) {
+        if (DataManager.registerPlayer(username, password)) {
             JOptionPane.showMessageDialog(this,
                 "회원가입이 완료되었습니다!\n이제 로그인해주세요.",
                 "회원가입 성공",
@@ -328,14 +324,6 @@ public class Start extends JFrame {
                 JOptionPane.ERROR_MESSAGE);
             nameField.requestFocusInWindow();
         }
-    }
-    
-    // MySQL 없이 진행하는 경우 (개발/테스트용)
-    private void proceedWithoutDB(String username) {
-        dispose();
-        SwingUtilities.invokeLater(() -> {
-            new Home(username, 0, 0, 100);
-        });
     }
     
     public static void main(String[] args) {

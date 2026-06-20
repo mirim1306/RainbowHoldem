@@ -26,11 +26,13 @@ public class Home extends JFrame {
         this.wins = wins;
         this.losses = losses;
         this.coins = coins;
+        SettingsManager.load();
+        SoundManager.playDefaultBgm();
         createAndShowHomeGUI();
     }
     
     public void savePlayerData() {       
-        boolean success = DatabaseManager.savePlayerData(playerName, wins, losses, coins);
+        boolean success = DataManager.savePlayerData(playerName, wins, losses, coins);
         if (!success) {
             System.err.println("데이터 저장 실패: " + playerName);
             JOptionPane.showMessageDialog(this, 
@@ -135,7 +137,10 @@ public class Home extends JFrame {
         ActionListener notImplementedListener = e ->
             JOptionPane.showMessageDialog(Home.this, "아직 구현되지 않았습니다.", "알림", JOptionPane.INFORMATION_MESSAGE);
 
-        settingsButton.addActionListener(notImplementedListener);
+        settingsButton.addActionListener(e -> {
+            SoundManager.playSfx("click.wav");
+            new SettingsDialog(Home.this).setVisible(true);
+        });
         exitButton.addActionListener(e -> System.exit(0));
         
         centerPanel.add(explainButton);
