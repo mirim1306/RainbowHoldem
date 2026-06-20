@@ -18,10 +18,14 @@ import java.util.Properties;
 public class LocalDataManager {
 
     // 플레이어별 데이터 파일이 저장되는 폴더
-    private static final String DATA_DIR = "playerdata";
+    // Program Files는 쓰기 권한이 없으므로 %APPDATA% 사용
+    private static final String DATA_DIR;
 
     static {
-        // 프로그램 시작 시 데이터 폴더가 없으면 생성
+        String appData = System.getenv("APPDATA");
+        DATA_DIR = (appData != null && !appData.isEmpty())
+            ? appData + java.io.File.separator + "RainbowHoldem" + java.io.File.separator + "playerdata"
+            : System.getProperty("user.home") + java.io.File.separator + "RainbowHoldem" + java.io.File.separator + "playerdata";
         try {
             Files.createDirectories(Paths.get(DATA_DIR));
         } catch (IOException e) {

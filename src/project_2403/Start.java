@@ -306,7 +306,7 @@ public class Start extends JFrame {
             nameField.requestFocusInWindow();
         } else {
             JOptionPane.showMessageDialog(this,
-                "이미 존재하는 아이디입니다.",
+                "이미 존재하는 아이디이거나 저장에 실패했습니다.",
                 "회원가입 실패",
                 JOptionPane.ERROR_MESSAGE);
             nameField.requestFocusInWindow();
