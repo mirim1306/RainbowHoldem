@@ -12,7 +12,6 @@ public class Start extends JFrame {
     private JButton loginButton;
     private JButton registerButton;
     private boolean isLoginMode = true; // true: 로그인, false: 회원가입
-    private boolean localModeNotified = false; // 로컬 파일 모드 안내를 한 번만 띄우기 위한 플래그
 
     public Start() {
         setTitle("레인보우 홀덤");
@@ -247,18 +246,6 @@ public class Start extends JFrame {
             return;
         }
         
-        // MySQL 연결 확인: 연결이 안 되면 자동으로 로컬 파일 저장 모드로 전환됩니다.
-        // (이미 로컬 모드로 전환된 적이 있다면 매번 다시 연결을 시도하지 않아 지연이 없습니다)
-        boolean dbAvailable = localModeNotified ? false : DataManager.recheckConnection();
-        if (!dbAvailable && !localModeNotified) {
-            localModeNotified = true;
-            JOptionPane.showMessageDialog(this,
-                "MySQL 서버에 연결할 수 없어 파일 저장 모드로 전환합니다.\n" +
-                "(전적과 코인은 이 PC의 'playerdata' 폴더에 저장됩니다)",
-                "안내",
-                JOptionPane.INFORMATION_MESSAGE);
-        }
-
         if (isLoginMode) {
             // 로그인 처리
             handleLogin(username, password);

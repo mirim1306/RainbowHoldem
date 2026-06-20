@@ -37,11 +37,12 @@ public class Player {
     }
 
     // 개인 카드 중 한 장을 선택하여 공개합니다.
-    // 카드를 제거하지 않고, 공개된 인덱스만 기록합니다.
     public Card revealPersonalCard(int index) {
         if (index >= 0 && index < personalCards.size() && !revealedCardIndices.contains(index)) {
-            revealedCardIndices.add(index); // 인덱스 기록
-            return personalCards.get(index); // 카드만 반환
+            Card card = personalCards.get(index);
+            revealedCardIndices.add(index);
+            revealedCards.add(card); // 공개된 카드 목록에도 추가 (베팅 순서 결정에 사용)
+            return card;
         }
         return null;
     }
@@ -108,55 +109,72 @@ public class Player {
         return revealedCardIndices.size();
     }
     
-    // AI가 개인 카드 3장 중 공개할 카드를 선택하고 공개합니다. (가장 낮은 숫자 선택)
-    public Card aiRevealCard() {
-        if (getRevealedCount() >= 1) {
-            return null; // 이미 한 장 공개했으면 추가 공개하지 않음
+    // AI가 공개할 카드를 선택합니다.
+    // 우선순위: 1) 공유 카드와 값이 같은 카드 (상쇄 가능), 2) 가장 낮은 카드
+    public Card aiRevealCard(List<Card> revealedSharedCards) {
+        if (getRevealedCount() >= 1) return null;
+
+        // 공유 카드와 매칭되는 개인 카드가 있으면 우선 공개 (서로 상쇄됨)
+        for (Card shared : revealedSharedCards) {
+            for (int i = 0; i < personalCards.size(); i++) {
+                if (!revealedCardIndices.contains(i) && personalCards.get(i).getValue() == shared.getValue()) {
+                    return revealPersonalCard(i);
+                }
+            }
         }
 
-        // 미공개 카드 중 가장 낮은 값의 인덱스 찾기
-        int minIndex = -1;
-        int minValue = 11; // 10보다 큰 값으로 초기화
-
+        // 매칭 없으면 가장 낮은 카드 공개
+        int minIndex = -1, minValue = 11;
         for (int i = 0; i < personalCards.size(); i++) {
-            Card card = personalCards.get(i);
-            // 이미 공개되지 않은 카드 중 가장 낮은 값을 찾습니다.
-            if (!getRevealedCardIndices().contains(i) && card.getValue() < minValue) {
-                minValue = card.getValue();
+            if (!revealedCardIndices.contains(i) && personalCards.get(i).getValue() < minValue) {
+                minValue = personalCards.get(i).getValue();
                 minIndex = i;
             }
         }
-
-        if (minIndex != -1) {
-            // 찾은 인덱스로 카드 공개 (Player 클래스의 revealPersonalCard 메서드 사용)
-            return revealPersonalCard(minIndex);
-        }
-        return null;
+        return (minIndex != -1) ? revealPersonalCard(minIndex) : null;
     }
 
-    // AI의 베팅 결정을 처리합니다. (80% 콜, 20% 폴드)
-    public String aiDecideBet(final int minBet) {
-        if (hasFolded()) {
-            return "PASS";
+    // AI 베팅 결정 - 공개 카드 비교, 상쇄 가능성, 칩 여유를 고려한 적당한 전략
+    public String aiDecideBet(int minBet, List<Player> allPlayers, List<Card> revealedSharedCards) {
+        if (hasFolded() || getChips() == 0 || getChips() < 10) return "FOLD";
+
+        // 내 공개 카드 값 (낮을수록 베팅 순서 앞 = 불리하지만 점수에선 유리)
+        int myRevealedValue = revealedCards.isEmpty() ? 5 : revealedCards.get(0).getValue();
+
+        // 나보다 낮은 공개 카드를 가진 상대 수 계산
+        int opponentsBeatingMe = 0, activeOpponents = 0;
+        for (Player p : allPlayers) {
+            if (p == this || p.hasFolded()) continue;
+            activeOpponents++;
+            if (!p.getRevealedCards().isEmpty() && p.getRevealedCards().get(0).getValue() < myRevealedValue) {
+                opponentsBeatingMe++;
+            }
+        }
+        // 상대적 불리함 (0=나 제일 낮음, 1=나 제일 높음)
+        double disadvantage = (activeOpponents > 0) ? (double) opponentsBeatingMe / activeOpponents : 0.0;
+
+        // 내 패 중 공유 카드와 상쇄 가능한 카드 수
+        int cancelPotential = 0;
+        for (Card sharedCard : revealedSharedCards) {
+            for (Card myCard : personalCards) {
+                if (myCard.getValue() == sharedCard.getValue()) {
+                    cancelPotential++;
+                    break;
+                }
+            }
         }
 
-        // 칩이 최소 베팅 금액보다 적으면 (강제 올인/폴드 로직은 이미 placeBet에 있음)
-        if (getChips() < minBet && getChips() > 0) {
-            // 현재는 MIN_BET이 10이므로, 칩이 10 미만인 경우 폴드로 처리
-            if (getChips() < 10) { 
-                return "FOLD";
-            }
-        } else if (getChips() == 0) {
-            return "FOLD";
-        }
-        
-        // 80% 확률로 콜
-        double luck = Math.random();
-        if (luck < 0.8) {
-            return "CALL";
-        } else {
-            return "FOLD";
-        }
+        // 베팅 부담 비율 (minBet이 내 칩의 절반 이상이면 부담)
+        double betBurden = Math.min(1.0, (double) minBet / Math.max(1, getChips()));
+
+        // 콜 확률: 기본 65%, 불리할수록 감소, 상쇄 카드 있으면 증가, 부담 크면 감소
+        double callProb = 0.65
+            - 0.30 * disadvantage
+            + 0.15 * Math.min(1, cancelPotential)
+            - 0.15 * betBurden;
+        callProb = Math.max(0.25, Math.min(0.92, callProb));
+
+        return Math.random() < callProb ? "CALL" : "FOLD";
     }
     
     public void setCardContainer(JPanel container) {

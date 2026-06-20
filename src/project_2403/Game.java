@@ -21,6 +21,7 @@ public class Game {
         this.round = 0;
         this.pot = 0;
         this.currentBet = 0;
+        this.currentBettingPlayerIndex = -1;
         
         // 플레이어 생성 (첫 번째 이름은 사용자, 나머지는 AI)
         for (int i = 0; i < playerNames.size(); i++) {
@@ -126,31 +127,25 @@ public class Game {
 
     // 라운드 종료 조건 확인
     public boolean isBettingRoundFinished() {
-        int activePlayerCount = 0;
-        
-        // 1. 최소 1명 이상의 플레이어가 액션을 취했는지 확인
-        boolean atLeastOneBet = players.stream().anyMatch(p -> p.getCurrentBetAmount() > 0 || p.hasFolded());
-        if (!atLeastOneBet) return false;
+        int activeCount = 0;
+        for (Player p : players) {
+            if (!p.hasFolded()) activeCount++;
+        }
 
-        // 2. 모든 활성 플레이어의 베팅 금액이 현재 라운드의 최고 베팅 금액과 일치하는지 확인
+        // 1명 이하 남으면 즉시 게임 종료
+        if (activeCount <= 1) return true;
+
+        // 아직 아무도 베팅하지 않았으면 라운드 미완료
+        // (AI가 폴드만 한 경우도 베팅은 시작 안 된 것으로 봄)
+        if (currentRoundBet == 0) return false;
+
+        // 모든 활성 플레이어의 베팅 금액이 currentRoundBet과 일치하면 종료
         for (Player player : players) {
-            if (!player.hasFolded()) {
-                activePlayerCount++;
-                
-                // 개인 베팅 금액이 현재 라운드 최고 베팅 금액과 다르면
-                if (player.getCurrentBetAmount() < currentRoundBet) {
-                    return false;
-                }
+            if (!player.hasFolded() && player.getCurrentBetAmount() < currentRoundBet) {
+                return false;
             }
         }
-        
-        // 3. 활성 플레이어가 1명 이하면 라운드 종료 (승리 확정)
-        if (activePlayerCount <= 1) {
-            return true; 
-        }
-        
-        // 모두의 베팅 금액이 일치하고, 액티브 플레이어가 2명 이상일 때 true 반환
-        return true; 
+        return true;
     }
     
     // 게임 진행 가능 여부 확인 메서드 추가
@@ -188,11 +183,17 @@ public class Game {
         }
     }
     
-    public int getCurrentRoundBet() { 
-        return currentRoundBet; 
+    public int getCurrentRoundBet() {
+        return currentRoundBet;
     }
 
     public void setCurrentRoundBet(int bet) {
         this.currentRoundBet = bet;
+    }
+
+    // 현재까지 공개된 공유 카드만 반환 (AI 판단에 사용)
+    public List<Card> getRevealedSharedCards() {
+        int count = Math.min(round, sharedCards.size());
+        return sharedCards.subList(0, count);
     }
 }

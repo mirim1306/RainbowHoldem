@@ -317,7 +317,7 @@ public class GameScreen extends JFrame {
         for (int i = 1; i < game.getPlayers().size(); i++) {
             Player aiPlayer = game.getPlayers().get(i);
             if (!aiPlayer.hasFolded()) {
-                aiPlayer.aiRevealCard(); // AI가 가장 낮은 카드를 공개
+                aiPlayer.aiRevealCard(game.getRevealedSharedCards());
             }
         }
         
@@ -388,7 +388,7 @@ public class GameScreen extends JFrame {
     private void processAIBet(Player aiPlayer) {
         final int requiredCallAmount = game.getCurrentRoundBet() - aiPlayer.getCurrentBetAmount();
         
-        String decision = aiPlayer.aiDecideBet(requiredCallAmount); // AI 결정 로직 사용
+        String decision = aiPlayer.aiDecideBet(requiredCallAmount, game.getPlayers(), game.getRevealedSharedCards());
         
         if (decision.equals("FOLD")) {
             aiPlayer.fold();

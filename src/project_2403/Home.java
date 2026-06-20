@@ -5,6 +5,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 
 public class Home extends JFrame {
     private String playerName;
@@ -182,14 +183,26 @@ public class Home extends JFrame {
 
     private static String getGameExplanationFromFile() {
         StringBuilder explanation = new StringBuilder();
-        try (BufferedReader br = new BufferedReader(new FileReader("game_explanation.txt"))) {
+        // JAR 내부 리소스에서 먼저 읽기 시도
+        try (InputStream is = Home.class.getResourceAsStream("/game_explanation.txt")) {
+            if (is != null) {
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        explanation.append(line).append("\n");
+                    }
+                }
+                return explanation.toString();
+            }
+        } catch (IOException ignored) {}
+        // 작업 디렉토리의 파일에서 읽기 시도
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream("game_explanation.txt"), StandardCharsets.UTF_8))) {
             String line;
             while ((line = br.readLine()) != null) {
                 explanation.append(line).append("\n");
             }
         } catch (IOException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(null, "게임 설명 파일을 찾을 수 없습니다.", "오류", JOptionPane.ERROR_MESSAGE);
+            return "게임 설명을 불러올 수 없습니다.";
         }
         return explanation.toString();
     }
